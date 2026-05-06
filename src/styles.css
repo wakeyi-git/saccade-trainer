@@ -200,3 +200,57 @@ body {
 }
 
 .flash-slot--on { opacity: 1; }
+
+/* Setup·Console·History 공통 */
+.page h2 {
+  font-size: 18px;
+  margin: 32px 0 12px;
+}
+
+.page textarea {
+  padding: 10px 12px;
+  font-size: 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  font-family: inherit;
+}
+
+.checkbox-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 4px 12px;
+  padding: 8px 0;
+}
+
+.checkbox-list__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: normal;
+  cursor: pointer;
+}
+
+.history-row {
+  border-bottom: 1px solid var(--border);
+  padding: 12px 0;
+}
+
+.history-row__meta { font-size: 14px; }
+.history-row__self,
+.history-row__teacher {
+  font-size: 14px;
+  margin-top: 4px;
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+}
+
+details {
+  margin: 16px 0;
+  padding: 8px 12px;
+  background: #f7f7f7;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+details summary { cursor: pointer; color: var(--muted); }

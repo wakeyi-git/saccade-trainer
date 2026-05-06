@@ -3,7 +3,18 @@ import { runLineTrack } from '../modes/saccade/line-track'
 import { runReturnSweep } from '../modes/saccade/return-sweep'
 import { runWordFlash } from '../modes/saccade/word-flash'
 import { findActivity } from '../activities'
-import type { ActivityRunner, EngineReport, Intensity, Mode } from '../types'
+import { getSettings, putSession } from '../storage'
+import { backupSession } from '../auto-backup'
+import { navigate } from '../router'
+import type {
+  ActivityRunner,
+  EngineReport,
+  Intensity,
+  Mode,
+  Phase,
+  Session,
+  Track
+} from '../types'
 
 const REGISTRY: Record<string, ActivityRunner> = {
   'A/A1': runTwoPoint,
@@ -31,10 +42,14 @@ export function renderRunner(
     return () => {}
   }
 
+  const settings = getSettings()
   const intensity = parseIntensity(query.get('i'), meta.defaultIntensity)
-  const durationSec = parseDuration(query.get('d'), meta.durations, meta.defaultDuration)
+  const durationSec = parseDuration(query.get('d'), meta.defaultDuration)
   const timeScale = parseTimeScale(query.get('t'))
   const autoExit = query.get('autoexit') === '1'
+  const studentIds = parseStudents(query.get('s'))
+  const phase = parsePhase(query.get('p'), settings.defaultPhase)
+  const track = parseTrack(query.get('tk'), settings.defaultTrack)
 
   const container = document.createElement('div')
   container.className = 'runner'
@@ -64,7 +79,24 @@ export function renderRunner(
       signal: controller.signal,
       timeScale
     })
-      .then((report) => showReport(root, container, report, params, autoExit))
+      .then(async (report) => {
+        if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
+        container.remove()
+        if (autoExit) {
+          showInPlaceReport(root, report, params)
+        } else {
+          await persistAndNavigate(root, report, {
+            mode: params.mode as Mode,
+            activity: params.activity,
+            intensity,
+            durationMs: durationSec * 1000,
+            studentIds,
+            phase,
+            track,
+            autoBackup: settings.autoBackup
+          })
+        }
+      })
       .catch((err) => showError(root, container, err))
   })
 
@@ -76,42 +108,50 @@ export function renderRunner(
   }
 }
 
-function parseIntensity(raw: string | null, fallback: Intensity): Intensity {
-  if (raw === 'low' || raw === 'medium' || raw === 'high') return raw
-  return fallback
-}
-
-function parseDuration(raw: string | null, _allowed: number[], fallback: number): number {
-  const n = raw ? Number.parseInt(raw, 10) : NaN
-  if (!Number.isFinite(n) || n <= 0) return fallback
-  return Math.min(n, 600)
-}
-
-function parseTimeScale(raw: string | null): number {
-  const n = raw ? Number.parseFloat(raw) : NaN
-  if (!Number.isFinite(n) || n <= 0) return 1
-  return Math.min(n, 100)
-}
-
-async function enterFullscreen(el: HTMLElement): Promise<void> {
+async function persistAndNavigate(
+  root: HTMLElement,
+  report: EngineReport,
+  ctx: {
+    mode: Mode
+    activity: string
+    intensity: Intensity
+    durationMs: number
+    studentIds: string[]
+    phase: Phase
+    track: Track
+    autoBackup: boolean
+  }
+): Promise<void> {
+  const now = new Date()
+  const session: Session = {
+    id: crypto.randomUUID(),
+    date: toLocalDate(now),
+    createdAt: now.toISOString(),
+    mode: ctx.mode,
+    activity: ctx.activity,
+    intensity: ctx.intensity,
+    durationMs: ctx.durationMs,
+    studentIds: ctx.studentIds,
+    phase: ctx.phase,
+    track: ctx.track,
+    selfReport: '',
+    teacherComment: '',
+    engineReport: report
+  }
   try {
-    if (el.requestFullscreen) await el.requestFullscreen()
-  } catch {
-    /* 풀스크린 거부 시 윈도우 모드로 계속 */
+    await putSession(session)
+    if (ctx.autoBackup) backupSession(session)
+    navigate(`/report/${session.id}`)
+  } catch (err) {
+    showError(root, document.createElement('div'), err)
   }
 }
 
-function showReport(
+function showInPlaceReport(
   root: HTMLElement,
-  container: HTMLElement,
   report: EngineReport,
-  params: { mode: string; activity: string },
-  autoExit: boolean
+  params: { mode: string; activity: string }
 ): void {
-  if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
-  container.remove()
-
-  const mode = params.mode as Mode
   const wrap = document.createElement('div')
   wrap.className = 'runner__report'
   wrap.dataset['testReport'] = '1'
@@ -120,26 +160,16 @@ function showReport(
   wrap.dataset['maxError'] = max(report.cueErrors).toFixed(2)
   wrap.dataset['dropCount'] = String(report.dropCount)
   wrap.innerHTML = `
-    <h1>회기 종료</h1>
-    <p class="muted">${mode}/${params.activity} · ${report.reason}</p>
+    <h1>회기 종료 (테스트)</h1>
+    <p class="muted">${params.mode}/${params.activity} · ${report.reason}</p>
     <table class="report-table">
       <tr><td>cue 수</td><td>${report.cueErrors.length}</td></tr>
       <tr><td>평균 오차</td><td>${avg(report.cueErrors).toFixed(1)} ms</td></tr>
       <tr><td>최대 오차</td><td>${max(report.cueErrors).toFixed(1)} ms</td></tr>
-      <tr><td>드롭 프레임</td><td>${report.dropCount} (max ${report.maxDropMs.toFixed(1)} ms)</td></tr>
+      <tr><td>드롭 프레임</td><td>${report.dropCount}</td></tr>
     </table>
-    <div class="btn-row">
-      <a class="btn btn--primary" href="#/teacher">콘솔로</a>
-      <a class="btn" href="#/">홈</a>
-    </div>
   `
   root.append(wrap)
-
-  if (autoExit) {
-    queueMicrotask(() => {
-      window.dispatchEvent(new CustomEvent('runner:autoexit', { detail: report }))
-    })
-  }
 }
 
 function showError(root: HTMLElement, container: HTMLElement, err: unknown): void {
@@ -151,6 +181,54 @@ function showError(root: HTMLElement, container: HTMLElement, err: unknown): voi
       <a class="btn" href="#/">홈</a>
     </div>
   `
+}
+
+function parseIntensity(raw: string | null, fallback: Intensity): Intensity {
+  if (raw === 'low' || raw === 'medium' || raw === 'high') return raw
+  return fallback
+}
+
+function parseDuration(raw: string | null, fallback: number): number {
+  const n = raw ? Number.parseInt(raw, 10) : NaN
+  if (!Number.isFinite(n) || n <= 0) return fallback
+  return Math.min(n, 600)
+}
+
+function parseTimeScale(raw: string | null): number {
+  const n = raw ? Number.parseFloat(raw) : NaN
+  if (!Number.isFinite(n) || n <= 0) return 1
+  return Math.min(n, 100)
+}
+
+function parseStudents(raw: string | null): string[] {
+  if (!raw) return []
+  return raw.split(',').map((s) => s.trim()).filter((s) => s.length > 0)
+}
+
+function parsePhase(raw: string | null, fallback: Phase): Phase {
+  const n = raw ? Number.parseInt(raw, 10) : NaN
+  if (n === 0 || n === 1 || n === 2 || n === 3 || n === 4) return n
+  return fallback
+}
+
+function parseTrack(raw: string | null, fallback: Track): Track {
+  if (raw === 'A' || raw === 'B') return raw
+  return fallback
+}
+
+async function enterFullscreen(el: HTMLElement): Promise<void> {
+  try {
+    if (el.requestFullscreen) await el.requestFullscreen()
+  } catch {
+    /* 풀스크린 거부 시 윈도우 모드로 계속 */
+  }
+}
+
+function toLocalDate(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 function avg(xs: number[]): number {
