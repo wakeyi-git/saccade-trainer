@@ -1,4 +1,8 @@
-type RouteHandler = (root: HTMLElement, params: Record<string, string>) => void | (() => void)
+type RouteHandler = (
+  root: HTMLElement,
+  params: Record<string, string>,
+  query: URLSearchParams
+) => void | (() => void)
 
 type Route = {
   pattern: RegExp
@@ -42,13 +46,17 @@ function dispatch(): void {
   }
   rootEl.innerHTML = ''
 
-  const path = location.hash.replace(/^#/, '') || '/'
+  const raw = location.hash.replace(/^#/, '') || '/'
+  const qIdx = raw.indexOf('?')
+  const path = qIdx >= 0 ? raw.slice(0, qIdx) : raw
+  const query = new URLSearchParams(qIdx >= 0 ? raw.slice(qIdx + 1) : '')
+
   for (const route of routes) {
     const match = route.pattern.exec(path)
     if (!match) continue
     const params: Record<string, string> = {}
     route.keys.forEach((k, i) => (params[k] = decodeURIComponent(match[i + 1])))
-    const cleanup = route.handler(rootEl, params)
+    const cleanup = route.handler(rootEl, params, query)
     if (typeof cleanup === 'function') currentCleanup = cleanup
     return
   }

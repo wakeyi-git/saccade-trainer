@@ -55,7 +55,7 @@ export const runTwoPoint: ActivityRunner = async (root, opts) => {
 
   let report: EngineReport
   try {
-    report = await engine.start({ durationMs: opts.durationMs, cues })
+    report = await engine.start({ durationMs: opts.durationMs, cues, timeScale: opts.timeScale })
   } finally {
     window.removeEventListener('resize', onResize)
     opts.signal.removeEventListener('abort', onAbort)

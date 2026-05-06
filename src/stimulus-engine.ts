@@ -25,6 +25,7 @@ export class StimulusEngine<T = unknown> {
   private cueErrors: number[] = []
   private cuesPending: Cue<T>[] = []
   private durationMs = 0
+  private timeScale = 1
   private running = false
   private stopReason: StopReason = 'completed'
   private resolve: ((r: EngineReport) => void) | null = null
@@ -52,10 +53,11 @@ export class StimulusEngine<T = unknown> {
     }
   }
 
-  start(opts: { durationMs: number; cues?: Cue<T>[] }): Promise<EngineReport> {
+  start(opts: { durationMs: number; cues?: Cue<T>[]; timeScale?: number }): Promise<EngineReport> {
     if (this.running) throw new Error('engine already running')
     this.running = true
     this.durationMs = opts.durationMs
+    this.timeScale = opts.timeScale && opts.timeScale > 0 ? opts.timeScale : 1
     this.cuesPending = (opts.cues ?? []).slice().sort((a, b) => a.atMs - b.atMs)
     this.startedAt = performance.now()
     this.lastFrameAt = this.startedAt
@@ -96,7 +98,7 @@ export class StimulusEngine<T = unknown> {
 
   private tick = (now: number): void => {
     if (!this.running) return
-    const elapsedMs = now - this.startedAt
+    const elapsedMs = (now - this.startedAt) * this.timeScale
     const deltaMs = now - this.lastFrameAt
     const dropped = deltaMs > DROP_THRESHOLD_MS
     if (dropped) {

@@ -1,17 +1,26 @@
 import { runTwoPoint } from '../modes/saccade/two-point'
-import type { ActivityRunner, EngineReport, Mode } from '../types'
+import { runLineTrack } from '../modes/saccade/line-track'
+import { runReturnSweep } from '../modes/saccade/return-sweep'
+import { runWordFlash } from '../modes/saccade/word-flash'
+import { findActivity } from '../activities'
+import type { ActivityRunner, EngineReport, Intensity, Mode } from '../types'
 
 const REGISTRY: Record<string, ActivityRunner> = {
-  'A/A1': runTwoPoint
+  'A/A1': runTwoPoint,
+  'A/A2': runLineTrack,
+  'A/A3': runReturnSweep,
+  'A/A4': runWordFlash
 }
 
 export function renderRunner(
   root: HTMLElement,
-  params: { mode: string; activity: string }
+  params: { mode: string; activity: string },
+  query: URLSearchParams
 ): () => void {
+  const meta = findActivity(params.mode, params.activity)
   const key = `${params.mode}/${params.activity}`
   const runner = REGISTRY[key]
-  if (!runner) {
+  if (!meta || !runner) {
     root.innerHTML = `
       <div class="page">
         <h1>알 수 없는 활동</h1>
@@ -22,33 +31,40 @@ export function renderRunner(
     return () => {}
   }
 
+  const intensity = parseIntensity(query.get('i'), meta.defaultIntensity)
+  const durationSec = parseDuration(query.get('d'), meta.durations, meta.defaultDuration)
+  const timeScale = parseTimeScale(query.get('t'))
+  const autoExit = query.get('autoexit') === '1'
+
   const container = document.createElement('div')
   container.className = 'runner'
   const hint = document.createElement('div')
   hint.className = 'runner__hint'
-  hint.textContent = 'ESC로 종료'
+  hint.textContent = `${meta.id} · ${meta.label} · ${intensity} · ${durationSec}s${timeScale > 1 ? ` · ×${timeScale}` : ''} · ESC`
   container.append(hint)
   root.append(container)
 
   const controller = new AbortController()
 
   const onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && !controller.signal.aborted) {
-      controller.abort('esc')
-    }
+    if (e.key === 'Escape' && !controller.signal.aborted) controller.abort('esc')
   }
   document.addEventListener('keydown', onKey)
 
   const onFsChange = () => {
-    if (!document.fullscreenElement && !controller.signal.aborted) {
-      controller.abort('esc')
-    }
+    if (!document.fullscreenElement && !controller.signal.aborted) controller.abort('esc')
   }
   document.addEventListener('fullscreenchange', onFsChange)
 
-  enterFullscreen(container).then(() => {
-    runner(container, { intensity: 'medium', durationMs: 60_000, signal: controller.signal })
-      .then((report) => showReport(root, container, report, params))
+  const fsPromise = timeScale > 1 ? Promise.resolve() : enterFullscreen(container)
+  fsPromise.then(() => {
+    runner(container, {
+      intensity,
+      durationMs: durationSec * 1000,
+      signal: controller.signal,
+      timeScale
+    })
+      .then((report) => showReport(root, container, report, params, autoExit))
       .catch((err) => showError(root, container, err))
   })
 
@@ -60,11 +76,28 @@ export function renderRunner(
   }
 }
 
+function parseIntensity(raw: string | null, fallback: Intensity): Intensity {
+  if (raw === 'low' || raw === 'medium' || raw === 'high') return raw
+  return fallback
+}
+
+function parseDuration(raw: string | null, _allowed: number[], fallback: number): number {
+  const n = raw ? Number.parseInt(raw, 10) : NaN
+  if (!Number.isFinite(n) || n <= 0) return fallback
+  return Math.min(n, 600)
+}
+
+function parseTimeScale(raw: string | null): number {
+  const n = raw ? Number.parseFloat(raw) : NaN
+  if (!Number.isFinite(n) || n <= 0) return 1
+  return Math.min(n, 100)
+}
+
 async function enterFullscreen(el: HTMLElement): Promise<void> {
   try {
     if (el.requestFullscreen) await el.requestFullscreen()
   } catch {
-    // 풀스크린 거부 시에도 자극 화면은 그대로 표시 (윈도우 모드)
+    /* 풀스크린 거부 시 윈도우 모드로 계속 */
   }
 }
 
@@ -72,7 +105,8 @@ function showReport(
   root: HTMLElement,
   container: HTMLElement,
   report: EngineReport,
-  params: { mode: string; activity: string }
+  params: { mode: string; activity: string },
+  autoExit: boolean
 ): void {
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
   container.remove()
@@ -80,6 +114,11 @@ function showReport(
   const mode = params.mode as Mode
   const wrap = document.createElement('div')
   wrap.className = 'runner__report'
+  wrap.dataset['testReport'] = '1'
+  wrap.dataset['cueCount'] = String(report.cueErrors.length)
+  wrap.dataset['avgError'] = avg(report.cueErrors).toFixed(2)
+  wrap.dataset['maxError'] = max(report.cueErrors).toFixed(2)
+  wrap.dataset['dropCount'] = String(report.dropCount)
   wrap.innerHTML = `
     <h1>회기 종료</h1>
     <p class="muted">${mode}/${params.activity} · ${report.reason}</p>
@@ -95,6 +134,12 @@ function showReport(
     </div>
   `
   root.append(wrap)
+
+  if (autoExit) {
+    queueMicrotask(() => {
+      window.dispatchEvent(new CustomEvent('runner:autoexit', { detail: report }))
+    })
+  }
 }
 
 function showError(root: HTMLElement, container: HTMLElement, err: unknown): void {

@@ -6,8 +6,8 @@ import { renderRunner } from './pages/runner'
 
 registerRoute('/', (root) => renderHome(root))
 registerRoute('/teacher', (root) => renderTeacherConsole(root))
-registerRoute('/run/:mode/:activity', (root, params) =>
-  renderRunner(root, { mode: params.mode, activity: params.activity })
+registerRoute('/run/:mode/:activity', (root, params, query) =>
+  renderRunner(root, { mode: params.mode, activity: params.activity }, query)
 )
 
 const app = document.getElementById('app')
