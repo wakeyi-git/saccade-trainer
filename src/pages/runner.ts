@@ -2,6 +2,12 @@ import { runTwoPoint } from '../modes/saccade/two-point'
 import { runLineTrack } from '../modes/saccade/line-track'
 import { runReturnSweep } from '../modes/saccade/return-sweep'
 import { runWordFlash } from '../modes/saccade/word-flash'
+import { runChunkTrainer } from '../modes/saccade/chunk-trainer'
+import { runSplit } from '../modes/mode-switch/split'
+import { runNameCard } from '../modes/mode-switch/name-card'
+import { runTwoReadings } from '../modes/mode-switch/two-readings'
+import { runFixationCard } from '../modes/fixation/card'
+import { runSlowRead } from '../modes/fixation/slow-read'
 import { findActivity } from '../activities'
 import { getSettings, putSession } from '../storage'
 import { backupSession } from '../auto-backup'
@@ -20,7 +26,13 @@ const REGISTRY: Record<string, ActivityRunner> = {
   'A/A1': runTwoPoint,
   'A/A2': runLineTrack,
   'A/A3': runReturnSweep,
-  'A/A4': runWordFlash
+  'A/A4': runWordFlash,
+  'A/A5': runChunkTrainer,
+  'B/B1': runSplit,
+  'B/B2': runNameCard,
+  'B/B3': runTwoReadings,
+  'C/C1': runFixationCard,
+  'C/C2': runSlowRead
 }
 
 export function renderRunner(
@@ -44,15 +56,19 @@ export function renderRunner(
 
   const settings = getSettings()
   const intensity = parseIntensity(query.get('i'), meta.defaultIntensity)
-  const durationSec = parseDuration(query.get('d'), meta.defaultDuration)
+  const durationSec = parseDuration(query.get('d'), meta.defaultDurationSec)
   const timeScale = parseTimeScale(query.get('t'))
   const autoExit = query.get('autoexit') === '1'
   const studentIds = parseStudents(query.get('s'))
   const phase = parsePhase(query.get('p'), settings.defaultPhase)
   const track = parseTrack(query.get('tk'), settings.defaultTrack)
+  const paragraphId = query.get('para')
+  const chunkSize = parseChunk(query.get('chunk'))
 
   const container = document.createElement('div')
   container.className = 'runner'
+  // 입력이 활동의 일부인 모드 C는 마우스 포인터 유지
+  if (meta.mode === 'C') container.classList.add('runner--cursor')
   const hint = document.createElement('div')
   hint.className = 'runner__hint'
   hint.textContent = `${meta.id} · ${meta.label} · ${intensity} · ${durationSec}s${timeScale > 1 ? ` · ×${timeScale}` : ''} · ESC`
@@ -77,7 +93,9 @@ export function renderRunner(
       intensity,
       durationMs: durationSec * 1000,
       signal: controller.signal,
-      timeScale
+      timeScale,
+      paragraphId,
+      chunkSize
     })
       .then(async (report) => {
         if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
@@ -198,6 +216,12 @@ function parseTimeScale(raw: string | null): number {
   const n = raw ? Number.parseFloat(raw) : NaN
   if (!Number.isFinite(n) || n <= 0) return 1
   return Math.min(n, 100)
+}
+
+function parseChunk(raw: string | null): number {
+  const n = raw ? Number.parseInt(raw, 10) : NaN
+  if (!Number.isFinite(n) || n < 1) return 2
+  return Math.min(n, 5)
 }
 
 function parseStudents(raw: string | null): string[] {

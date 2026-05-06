@@ -91,6 +91,8 @@ body {
   cursor: none;
 }
 
+.runner--cursor { cursor: auto; }
+
 .runner__canvas {
   position: absolute;
   inset: 0;
@@ -254,3 +256,237 @@ details {
 }
 
 details summary { cursor: pointer; color: var(--muted); }
+
+/* B1 상하 분할 */
+.split-canvas {
+  display: flex;
+  flex-direction: column;
+}
+
+.split-pane {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow 100ms linear;
+}
+
+.split-pane--active {
+  box-shadow: inset 0 0 0 4px var(--accent);
+}
+
+.split-pane--top {
+  background: #fafafa;
+  border-bottom: 1px solid var(--border);
+}
+
+.scroll-stack {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  /* 카드는 아래→위로 흐름 → 학생 시선은 흐름과 반대로 위→아래로 이동 */
+  animation: scroll-up 6s linear infinite;
+}
+
+.scroll-card {
+  flex-shrink: 0;
+  height: 64px;
+  border-radius: 6px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+@keyframes scroll-up {
+  from { transform: translateY(0%); }
+  to   { transform: translateY(-50%); }
+}
+
+.split-pane--bottom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.split-paragraph {
+  max-width: 80%;
+  font-size: 22px;
+  line-height: 1.6;
+}
+
+/* B2 모드 명명 카드 */
+.name-card-canvas {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.name-card {
+  text-align: center;
+}
+
+.name-card__emoji {
+  font-size: 120px;
+  line-height: 1;
+}
+
+.name-card__label {
+  font-size: 36px;
+  margin-top: 16px;
+}
+
+.name-card__hint {
+  margin-top: 32px;
+  color: var(--muted);
+  font-size: 16px;
+}
+
+/* B3 같은 글 두 번 */
+.two-readings {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.two-readings__intro {
+  font-size: 28px;
+  text-align: center;
+}
+
+.two-readings__vertical {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-size: 28px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.two-readings__horizontal {
+  max-width: 70%;
+  font-size: 22px;
+  line-height: 1.6;
+}
+
+.two-readings__compare {
+  text-align: center;
+  font-size: 22px;
+}
+
+/* C1 응시 카드 */
+.fixation-canvas {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+}
+
+.fixation-word {
+  font-size: 96px;
+  font-weight: 600;
+}
+
+.fixation-meter {
+  width: 320px;
+  height: 6px;
+  background: #eee;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.fixation-meter__fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+}
+
+.fixation-input input {
+  width: 360px;
+  padding: 12px 14px;
+  font-size: 18px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+/* C2 slow read */
+.slow-canvas {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 32px;
+}
+
+.slow-title {
+  font-size: 22px;
+  margin: 0;
+  color: var(--muted);
+}
+
+.slow-paragraph {
+  max-width: 70%;
+  font-size: 26px;
+  line-height: 1.7;
+  text-align: center;
+}
+
+.slow-meter {
+  width: 60%;
+  height: 8px;
+  background: #eee;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.slow-meter__fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+}
+
+.slow-input p { margin: 0 0 8px; text-align: center; }
+.slow-input input {
+  width: 360px;
+  padding: 12px 14px;
+  font-size: 18px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+/* A5 청킹 트레이너 */
+.chunk-canvas {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  padding: 32px;
+}
+
+.chunk-title {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.chunk-flow {
+  max-width: 80%;
+  text-align: center;
+  line-height: 2.2;
+}
+
+.chunk-flow .word {
+  display: inline-block;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: background-color 80ms linear, color 80ms linear;
+}

@@ -11,6 +11,8 @@ export type ActivityOpts = {
   durationMs: number
   signal: AbortSignal
   timeScale?: number
+  paragraphId?: string | null    // 단락 풀에서 선택한 본문 (선택)
+  chunkSize?: number             // 청킹 단어 수 (선택)
 }
 
 export type ActivityRunner = (root: HTMLElement, opts: ActivityOpts) => Promise<EngineReport>
@@ -52,10 +54,21 @@ export type Settings = {
   defaultPhase: Phase
   defaultTrack: Track
   autoBackup: boolean        // 회기 저장 시 JSON 자동 다운로드
+  soundCues: boolean         // 모드 B 신호음 사용 여부 (기본 끔)
+}
+
+export type Paragraph = {
+  id: string                 // 'builtin-p1' 또는 uuid
+  title: string
+  text: string
+  grade: number
+  source: 'builtin' | 'teacher'
+  createdAt: string          // ISO8601
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   defaultPhase: 1,
   defaultTrack: 'A',
-  autoBackup: true
+  autoBackup: true,
+  soundCues: false
 }
